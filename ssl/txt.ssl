@@ -1,0 +1,114 @@
+openssl index.txt echo 01 > serial
+
+
+服务端
+
+    #### 使用 OpenSSL 创建自签名证书
+
+    ## 1.创建根证书的私钥
+    openssl genrsa -out ca.key 1024
+
+    ## 2.使用私钥创建根证书
+    openssl req -new -x509 -days 36500 -key ca.key -out ca.crt -subj "/C=CN/ST=BJ/L=hd/O=FW/OU=fw109"
+
+    ## 3.创建服务器私钥
+    openssl genrsa -out server.key 1024
+
+    ## 4.使用服务器私钥创建证书请求文件
+    需要改localhost为访问的ip，若ip变化，则证书变化
+    openssl req -new -key server.key -out server.csr -subj "/C=CN/ST=Fujian/L=Xiamen/O=Your Company Name/OU=localhost/CN=localhost"
+
+    ## 5.准备工作
+    mkdir -p demoCA/newcerts
+    touch demoCA/index.txt
+    echo '01' > demoCA/serial
+
+    ## 6.创建服务器证书并使用ca根证书签名
+    openssl ca -in server.csr -out server.crt -cert ca.crt -keyfile ca.key
+
+
+    #################################################
+    ## ---查看不同格式文件的内容命令语法
+    # openssl rsa -noout -text -in ca.key
+    # openssl x509 -noout -text -in ca.crt
+    # openssl rsa -noout -text -in server.key
+    # openssl req -noout -text -in server.csr
+    # openssl x509 -noout -text -in server.crt
+
+    ## 创建证书最简单方式
+    # openssl req -new -x509 -days 365 -nodes -out cert.pem -keyout cert.key
+    #################################################
+
+
+客户端
+curl -X POST -d '{"password": "123456", "email":"zhu__feng006@163.com"}' https://localhost:443/oauth/access_token  --cacert ca.crt
+
+
+server
+
+
+
+    import socket, ssl
+    import time
+
+    cacrtf="ca/ca.crt"
+    crtf="ca/server.crt"
+    keyf="ca/server.key"
+
+    server_sc = socket.socket()
+    server_sc.bind(('', 10023))
+    server_sc.listen(5)
+
+    newsocket, addr = server_sc.accept()
+    sc = ssl.wrap_socket(newsocket,
+                         server_side=True,
+                         certfile=crtf,
+                         keyfile=keyf,
+                         ca_certs=cacrtf)
+
+    data = sc.read()
+    print data
+    sc.write('Back time: ' + str(time.time()))
+
+    sc.close()
+    server_sc.close()
+
+
+client
+
+
+
+    import socket, ssl, pprint
+    import time
+
+    cacrtf="ca/ca.crt"
+    crtf="ca/server.crt"
+    keyf="ca/server.key"
+
+    socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    ssl_socket = ssl.wrap_socket(socket, ca_certs=cacrtf,
+cert_reqs=ssl.CERT_REQUIRED)
+    ssl_socket.connect(('127.0.0.1', 10023))
+
+    print repr(ssl_socket.getpeername())
+    print ssl_socket.cipher()
+    print pprint.pformat(ssl_socket.getpeercert())
+
+    ssl_socket.write("Time: %s\r\n" % time.time())
+
+    data = ssl_socket.read()
+    print data
+
+    ssl_socket.close()
+
+
+单纯验证tokenAPI
+curl -i -X POST "https://localhost:443/oauth/verify_token" -H "X-Auth-Token: 8kYWZ52rrPD2lbmcyXgucZjLh2NOUju25eLlU0Pm"   --cacert /root/task/api/ssl/ssl_dir/ca.crt
+HTTP/1.1 200 OK
+Content-Type: text/html; charset=UTF-8
+Content-Length: 23
+Date: Tue, 16 Jun 2015 17:31:40 GMT
+
+{"verify_flag": "true"}[root@storage token]# 
+
+

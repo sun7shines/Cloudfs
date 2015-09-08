@@ -1,0 +1,58 @@
+前文http://blog.csdn.net/linsanhua/article/details/16878817 描述了基于 OpenSSL
+的 CA 建立及证书签发过程。
+
+这里描述怎么利用subjectAltName添加ip到openssl证书。
+
+首先创建openssl.cnf, 内容如下.
+其中organizationalUnitName_default是你的组织名，commonName_default是域名，IP.1，IP.2则是想要加进来的IP列表了。
+
+[req]
+distinguished_name = req_distinguished_name
+req_extensions = v3_req
+
+
+[req_distinguished_name]
+countryName = Country Name (2 letter code)
+countryName_default = CN
+stateOrProvinceName = State or Province Name (full name)
+stateOrProvinceName_default = SiChuan
+localityName = Locality Name (eg, city)
+localityName_default = ChengDu
+organizationName = Organization Name (eg, company)
+organizationName_default = xxxxx Ltd
+organizationalUnitName  = Organizational Unit Name (eg, section)
+organizationalUnitName_default  = xxxxxxx
+commonName = Common Name (e.g. server FQDN or YOUR name)
+commonName_default = *.xxxx.com
+commonName_max  = 64
+
+
+[v3_req]
+basicConstraints = CA:TRUE
+subjectAltName = @alt_names
+
+[alt_names]
+IP.1 = xxx.xxx.xxx.xxx
+IP.2 = xxx.xxx.xxx.xxx
+
+
+下面shell步骤。
+
+# 建立 CA 目录结构
+mkdir -p ./demoCA/{private,newcerts}
+touch ./demoCA/index.txt
+echo 01 > ./demoCA/serial
+
+# 生成 CA 的 RSA 密钥对
+openssl genrsa -des3 -out ./demoCA/private/cakey.pem 2048
+
+
+# 自签发 CA 证书
+
+openssl req -new -x509 -days 365 -key ./demoCA/private/cakey.pem -out ./demoCA/cacert.pem -extensions v3_req -config openssl.cnf
+
+
+# 查看证书内容
+
+openssl x509 -in demoCA/cacert.pem -noout -text
+
